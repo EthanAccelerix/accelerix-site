@@ -15,8 +15,8 @@ if(matchMedia('(prefers-reduced-motion: reduce)').matches){d.classList.add('no-s
 </script>
 
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23120F1A'/%3E%3Cpath d='M8 9l8 7-8 7M16 9l8 7-8 7' fill='none' stroke='%239D6BFF' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-<link rel="preload" as="image" type="image/webp" href="frames/d/lo/000.webp" media="(min-aspect-ratio: 9/10)">
-<link rel="preload" as="image" type="image/webp" href="frames/m/lo/000.webp" media="(max-aspect-ratio: 9/10)">
+<link rel="preload" as="image" type="image/webp" href="frames/d/lo/000.webp" media="(min-aspect-ratio: 5/8)">
+<link rel="preload" as="image" type="image/webp" href="frames/m/lo/000.webp" media="(max-aspect-ratio: 5/8)">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700&family=Sora:wght@600;700;800&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -495,7 +495,7 @@ html.site-in .hero > *:nth-child(5){animation-delay:.5s}
   /* ---- Real loading gate: first fly-through frame + fonts, shown at least MIN ms ---- */
   var firstFrame = new Promise(function(res){
     var im = new Image(); im.onload = im.onerror = function(){ res(); };
-    im.src = 'frames/' + (innerWidth / innerHeight < 0.9 ? 'm' : 'd') + '/lo/000.webp';
+    im.src = 'frames/' + (innerWidth / innerHeight < 0.62 ? 'm' : 'd') + '/lo/000.webp';
   });
   var fonts = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
   var ready = Promise.all([firstFrame, fonts]);
@@ -765,19 +765,21 @@ html.site-in .hero > *:nth-child(5){animation-delay:.5s}
   var hero = document.getElementById('hero'), handoff = document.getElementById('handoff'), scrim = document.getElementById('scrim'), shade = document.getElementById('shade');
   var ctx = canvas.getContext('2d');
   var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var COUNT = 240;
-  var portrait = function(){ return innerWidth / innerHeight < 0.9; };
-  var setName = portrait() ? 'm' : 'd';          // m = portrait / phone framing, d = desktop 16:9
+  // d = desktop / tablet (2560x1440, 16:9), m = phone (1170x2532, tall). Windows are small because each decoded frame is 12-15 MB.
+  var SETS = { d:{count:300, ahead:16, behind:4, dpr:2}, m:{count:300, ahead:12, behind:4, dpr:3} };
+  var portrait = function(){ return innerWidth / innerHeight < 0.62; };
+  var setName = portrait() ? 'm' : 'd';
+  var COUNT = SETS[setName].count;
   var conn = navigator.connection || {};
   var lowOnly = !!(conn.saveData || /(^|-)2g$/.test(conn.effectiveType || ''));
-  var AHEAD = 24, BEHIND = 8;                    // sharp frames kept decoded around the playhead (bounds memory)
+  var AHEAD = SETS[setName].ahead, BEHIND = SETS[setName].behind;   // sharp frames kept around the playhead (bounds memory)
   var MAXF = 8;                                  // parallel requests
   var lo = [], hd = [], inflight = 0, gen = 0, drawn = '', shown = 0, target = 0, lastC = -1;
   // undefined = not requested, 0 = failed (never retried), Image = requested / loaded
 
   ctx.imageSmoothingQuality = 'high';
   function size(){
-    var dpr = Math.min(devicePixelRatio || 1, 2);
+    var dpr = Math.min(devicePixelRatio || 1, SETS[setName].dpr);
     canvas.width = Math.round(canvas.clientWidth * dpr);
     canvas.height = Math.round(canvas.clientHeight * dpr);
     drawn = '';
@@ -834,7 +836,7 @@ html.site-in .hero > *:nth-child(5){animation-delay:.5s}
   function evict(c){
     // drop decoded sharp frames far from the playhead; the low-res twin stays, and a revisit re-fetches from cache
     for (var i = 0; i < COUNT; i++){
-      if (ok(hd[i]) && (i < c - BEHIND*2 || i > c + AHEAD*2)) hd[i] = undefined;
+      if (ok(hd[i]) && (i < c - BEHIND*1.5 || i > c + AHEAD*1.5)) hd[i] = undefined;
     }
   }
   size();
@@ -865,7 +867,7 @@ html.site-in .hero > *:nth-child(5){animation-delay:.5s}
   }
   addEventListener('resize', function(){
     var n = portrait() ? 'm' : 'd';
-    if (n !== setName){ setName = n; gen++; lo = []; hd = []; inflight = 0; lastC = -1; drawn = ''; pump(); }
+    if (n !== setName){ setName = n; COUNT = SETS[n].count; AHEAD = SETS[n].ahead; BEHIND = SETS[n].behind; gen++; lo = []; hd = []; inflight = 0; lastC = -1; drawn = ''; pump(); }
     size();
   });
   requestAnimationFrame(tick);
